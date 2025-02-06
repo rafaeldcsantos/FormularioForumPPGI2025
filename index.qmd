@@ -1,10 +1,1252 @@
 ---
 title: "Processando dados de Formulário do Google Forms"
 subtitle: "Formulário para o ForumPPGI em 2025 (dificuldades da coordenação)"
+lightbox: true
+toc: true
 format: html
+css: styles.css
 ---
 
-Yo! More yo!
-Yo? Yo!
+# Sobre
+
+No final de janeiro de 2025, motivado por uma conversa com colegas, pensei em obter alguns dados para tentar caracterizar o *apagão da coordenação* de programas de pós-graduação. Esta expressão veio de um relatório do Grupo de Trabalho sobre Planejamento e Avaliação de Programas de Pós-Graduação em Computação do Fórum de Coordenadores de Programas de Pós-Graduação em Computação.
+
+::: callout-note
+## Referência original
+
+Fórum de Coordenadores de Programas de Pós-Graduação em Computação. “Proposições para o Planejamento e Avaliação de Programas de Pós-Graduação em Computação”. Grupo de Trabalho sobre Planejamento e Avaliação de Programas de Pós-Graduação em Computação. Sociedade Brasileira de Computação (SBC). 24p, 2024.
+:::
+
+O relatório diz:
+
+> *Conforme mencionado nos materiais produzidos pelos PPGs para o Relatório do Seminário de Meio Termo 2023 \[CA-CC 2023\], "O trabalho na pós-graduação ocorre em um ambiente cada vez mais engessado e resultante de um processo crescente de judicialização nas instituições públicas, inclusive nas universidades". Em particular, as tarefas que devem ser executadas por coordenadores de pós-graduação representam uma carga de trabalho e responsabilidade bastante elevadas.*
+
+A complexidade das tarefas da coordenação de programas de pós-graduação e a sensação de falta de reconhecimento tem levado a situações onde programas tem problemas em reter e incentivar os docentes a atuarem como coordenadores -- o *apagão da coordenação*.
+
+Este documento contém dados e análises coletadas via um formulário aplicado para os coordenadores de programas de pós-graduação da Área Interdisciplinar (45), a maior da CAPES. O link para o formulário foi enviado no grupo de WhatsApp dos coordenadores, com lembretes diários.
+
+## Dados coletados
+
+O formulário é completamente anônimo, e contém algumas perguntas sobre os programas (para agrupamento e diferenciação) e algumas perguntas sobre a percepção das dificuldades dos coordenadores.
+
+Os dados coletados podem ser baixados [aqui como uma planilha](Resources/Data/Questionário_%20Dificuldades%20na%20Coordenação%20de%20PPGs%20(Responses).xlsx).
+
+# Lendo os dados
+
+Primeiro importamos as bibliotecas que vamos usar.
+
+```{python}
+import pandas as pd 
+import re
+import plotly.express as px
+import plotly.graph_objects as go
+```
+
+Vamos ler a planilha!
+
+```{python}
+caminho = "Resources/Data/"
+arquivo = "Questionário_ Dificuldades na Coordenação de PPGs (Responses).xlsx"
+df = pd.read_excel(caminho+arquivo)
+```
+
+## Preprocessamento dos dados
+
+Observando os dados vimos que são precisas pequenas correções.
+
+```{python}
+# Lista de valores válidos conhecidos (substitua pelos valores corretos)
+validos = ["CÂMARA 1: Políticas e Desenvolvimento de Territórios", 
+           "CÂMARA 2: Sociais, Culturas e Humanidades", 
+           "CÂMARA 3: Engenharia, Tecnologia e Gestão",
+           "CÂMARA 4: Saúde e biológicas"]  
+
+# Substituimos valores inválidos por "Outra"
+df["Área da CAPES ou Câmara"] = \
+    df["Área da CAPES ou Câmara"].apply(lambda x: x if x in validos else "Outra")
+```
+
+Podemos também mudar a representação das respostas à pergunta `Apoio da IES ou ICT à coordenação`, procurando pela ocorrência de textos nas respostas e criando colunas adicionais no *dataframe* para representá-las:
+
+```{python}
+df["Tem_Apoio_Administrativo"] = \
+    df["Apoio da IES ou ICT à coordenação"]. \
+        str.contains("Apoio Administrativo", na=False)
+df["Tem_Recursos_Informática"] = \
+    df["Apoio da IES ou ICT à coordenação"]. \
+        str.contains("Recursos de informática", na=False)
+df["Tem_Recursos_Financeiros"] = \
+    df["Apoio da IES ou ICT à coordenação"]. \
+        str.contains("Recursos financeiros adicionais", na=False)
+df["Tem_Vantagens_Avaliacao"] = \
+    df["Apoio da IES ou ICT à coordenação"]. \
+       str.contains("Vantagens na avaliação funcional", na=False)
+df["Tem_Reducao_Carga"] = \
+    df["Apoio da IES ou ICT à coordenação"]. \
+        str.contains("Redução na carga horária didática", na=False)
+```
+
+# Gráficos sobre as respostas
+
+Usamos a ferramenta Google Forms para coletar os dados, mas faremos os gráficos separadamente para melhor controle. Assim podemos também criar combinações diferentes.
+
+## Informações sobre as respostas em si
+
+Por curiosidade, vamos ver algumas informações sobre os horários em que as respostas foram fornecidas.
+
+```{python}
+#| classes: printpython
+primeiraResposta = df['Timestamp'].min()
+últimaResposta = df['Timestamp'].max()
+print("A primeira resposta foi em "+primeiraResposta.strftime("%d/%m/%Y, %I:%M:%S %p"))
+print("A última resposta foi em "+últimaResposta.strftime("%d/%m/%Y, %I:%M:%S %p"))
+print(f"{df.shape[0]} respostas foram coletadas.")
+```
+
+Vamos ver em que hora do dia os coordenadores responderam?
+
+```{python}
+#| classes: chartpython
+# Definimos o intervalo de tempo para o gráfico.
+inicio = pd.Timestamp("2025-01-31 20:00:00")
+fim = pd.Timestamp("2025-02-06 12:00:00")
+
+# Um valor constante para cada timestamp.
+df["Count"] = 1 
+
+# Criamos o gráfico de barras com timestamps.
+fig = px.bar(
+    df, 
+    x="Timestamp",
+    y="Count",  
+    title="Distribuição de Respostas ao Longo do Tempo",
+    labels={"Timestamp": "Data e Hora", "Count": ""},
+    color_discrete_sequence=["#1f77b4"],
+    )
+
+# Ajustamos o intervalo do gráfico.
+fig.update_xaxes(range=[inicio,fim])
+
+# Ajustamos a aparência das barras.
+fig.update_traces(marker_line_color="rgba(0,80,180,0.25)", marker_line_width=2,
+                 hovertemplate = "%{x}<extra></extra>") 
+
+# Customizamos o eixo X.
+fig.update_xaxes(tickformat="%d/%m %H:%M", title_text="Data e Hora")
+fig.update_yaxes(title_text="")
+fig.update_xaxes(
+    dtick=6 * 3600 * 1000,  # 6 horas em milissegundos.
+    tickformat="%d/%m %H:%M",  
+    tickangle=90
+)
+# Customizamos o eixo Y.
+fig.update_yaxes(showticklabels=False, showgrid=False, title_text="")
+
+# Adicionamos marcadores para o período noturno.
+noites = []
+agora = inicio
+
+# Se o início já for à noite (depois das 18h), adicionar a primeira noite:
+if inicio.hour >= 18 or inicio.hour < 6:
+    inicioNoite = inicio  
+    fimNoite = inicio.replace(hour=6, minute=0, second=0) + pd.Timedelta(days=1) 
+    noites.append((inicioNoite, fimNoite))
+
+# Calculamos as noites seguintes.
+while agora < fim:
+    inicioNoite = agora.replace(hour=18, minute=0, second=0)
+    fimNoite = (agora + pd.Timedelta(days=1)).replace(hour=6, minute=0, second=0)
+    if inicioNoite >= inicio:
+        noites.append((inicioNoite, fimNoite))
+    agora += pd.Timedelta(days=1)
+
+# Adicionamos as barras ao gráfico.
+for inicioNoite, fimNoite in noites:
+    fig.add_shape(type="rect",
+                  x0=inicioNoite, x1=fimNoite, y0=0, y1=1,
+                  fillcolor="darkgray", opacity=0.5, layer="below", line_width=0)
+
+# Vamos criar anotações para o fim de semana também!
+inicioFimDeSemana = pd.Timestamp("2025-01-31 18:00:00")  
+fimFimDeSemana = pd.Timestamp("2025-02-03 06:00:00") 
+
+# Adicionamos o sombreamento do final de semana ao gráfico.
+fig.add_shape(type="rect",
+              x0=inicioFimDeSemana, x1=fimFimDeSemana, 
+              y0=0, y1=1,
+              fillcolor="red", opacity=0.1, layer="below", line_width=0)
+
+# Vamos anotar os horários em que lembramos os coordenadores sobre o formulário.
+lembretes = [pd.Timestamp("2025-01-31 23:20:00"),
+             pd.Timestamp("2025-02-01 21:51:00"),
+             pd.Timestamp("2025-02-02 18:48:00"),
+             pd.Timestamp("2025-02-03 21:02:00"),
+             pd.Timestamp("2025-02-04 19:45:00"),
+             pd.Timestamp("2025-02-05 16:22:00"),
+             ]
+
+# Adicionamos os pontos.
+fig.add_trace(go.Scatter(
+    x=lembretes,
+    y=[1.05] * len(lembretes),  
+    mode="markers",
+    marker=dict(symbol="triangle-down", size=10, color="red"),
+    name="Lembretes",
+    hovertemplate = "%{x}<extra></extra>"
+))
+
+# Mostramos o histograma.
+fig.show()
+```
+
+## Distribuições dos PPGs por categorias
+
+Vamos ver como é a distribuição dos programas por câmaras da área Interdisciplinar (é possível que programas de outras áreas venham a responder o formulário).
+
+```{python}
+#| classes: chartpython
+# Contamos a quantidade de respostas por categoria na coluna "Área da CAPES ou Câmara".
+contagemAreas = df["Área da CAPES ou Câmara"].value_counts().sort_index()
+
+# Criamos o gráfico de pizza com Plotly.
+fig_pizza = px.pie(
+    names=contagemAreas.index.tolist(),  
+    values=contagemAreas.values.tolist(),  
+    title="Distribuição das Respostas por Área da CAPES ou Câmara", 
+    labels={"names": "Área", "values": "Número de Respostas"}, 
+    category_orders={"names": contagemAreas.index.tolist()},
+    color_discrete_sequence=px.colors.qualitative.Set3,
+)
+# Aumentamos a fonte.
+fig_pizza.update_traces(textfont_size=20) 
+# Exibimos o gráfico.
+fig_pizza.show()
+```
+
+Pedimos também que os coordenadores informassem qual é o status jurídico de suas instituições. Segue um gráfico que mostra as proporções entre os que responderam.
+
+```{python}
+#| classes: chartpython
+# Contamos a quantidade de respostas por categoria na coluna "Status Jurídico"
+contagemStatus = df["Status Jurídico"].value_counts().sort_index()
+
+# Criamos o gráfico de pizza com Plotly.
+fig_pizza = px.pie(
+    names=contagemStatus.index.tolist(),  
+    values=contagemStatus.values.tolist(),  
+    title="Distribuição das Respostas por Status Jurídico",  
+    labels={"names": "Status Jurídico", "values": "Número de Respostas"},  
+    category_orders={"names": contagemStatus.index.tolist()},  
+    color_discrete_sequence=px.colors.qualitative.Set3,  
+)
+# Aumentamos a fonte.
+fig_pizza.update_traces(textfont_size=20)
+# Exibimos o gráfico.
+fig_pizza.show()
+```
+
+Outra pergunta foi sobre a região da sede do programa. Segue o gráfico criado pelas respostas.
+
+```{python}
+#| classes: chartpython
+# Contamos a quantidade de respostas por categoria na coluna "Região da Sede"
+contagemRegiao = df["Região da Sede"].value_counts().sort_index()
+
+# Criamos o gráfico de pizza com Plotly.
+fig_pizza = px.pie(
+    names=contagemRegiao.index.tolist(),  
+    values=contagemRegiao.values.tolist(), 
+    title="Distribuição das Respostas por Região da Sede",  
+    labels={"names": "Região", "values": "Número de Respostas"},  
+    category_orders={"names": contagemRegiao.index.tolist()},
+    color_discrete_sequence=px.colors.qualitative.Set3,  
+)
+# Aumentamos a fonte dentro das fatias.
+fig_pizza.update_traces(textfont_size=20)
+# Exibimos o gráfico.
+fig_pizza.show()
+```
+
+Uma característica interessante das coordenações de programas de pós-graduação é que nem todos os coordenadores são remunerados pelo trabalho adicional. Uma das perguntas do formulário foi sobre a remuneração adicional dos coordenadores nas IESs, usando dois valores como corte. Segue o gráfico das respostas:
+
+```{python}
+#| classes: chartpython
+# Quantidade de respostas por categoria na coluna "Remuneração por Coordenação de PPG"
+contagemRemuneracao = df["Remuneração por Coordenação de PPG"].value_counts()
+
+# Definimos a ordem explícita das categorias
+ordem_categorias = ["Nenhuma", "Até 1000 reais/mês", "Até 1500 reais/mês", 
+                    "Mais de 1500 reais/mês"]
+
+# Reordenamos os dados de acordo com a ordem explícita
+contagemRemuneracao = contagemRemuneracao.reindex(ordem_categorias)
+
+# Criamos o gráfico de pizza com Plotly
+fig_pizza = px.pie(
+    names=contagemRemuneracao.index.tolist(),  
+    values=contagemRemuneracao.values.tolist(), 
+    title="Distribuição das Respostas por Remuneração",  
+    labels={"names": "Remuneração", "values": "Número de Respostas"}, 
+    category_orders={"names": contagemRemuneracao.index.tolist()},    
+    color_discrete_sequence=px.colors.qualitative.Set3  
+)
+# Aumentamos a fonte dentro das fatias.
+fig_pizza.update_traces(textfont_size=20)
+# Exibimos o gráfico.
+fig_pizza.show()
+```
+
+## Apoio dado aos PPGs
+
+Considerando a pergunta `Apoio da IES ou ICT à coordenação`, como é a distribuição percentual das respostas?
+
+```{python}
+#| classes: chartpython
+# Criamos um subconjunto das respostas de interesse:
+df_booleans = df[[
+    "Tem_Apoio_Administrativo",
+    "Tem_Recursos_Informática",
+    "Tem_Recursos_Financeiros",
+    "Tem_Vantagens_Avaliacao",
+    "Tem_Reducao_Carga"
+]]
+nomes_legiveis = {
+    "Tem_Apoio_Administrativo": "Apoio<br>Administrativo",
+    "Tem_Recursos_Informática": "Recursos de<br>Informática",
+    "Tem_Recursos_Financeiros": "Recursos<br>Financeiros<br>Adicionais",
+    "Tem_Vantagens_Avaliacao": "Vantagens na<br>Avaliação Funcional",
+    "Tem_Reducao_Carga": "Redução na<br>Carga Horária<br>Didática"
+}
+# Criamos um dataframe com a contagem de cada tipo de apoio
+df_count = df_booleans.sum().reset_index()
+df_count.columns = ["Tipo do Apoio", "Quantidade"]
+# Substituimos os nomes das colunas no dataframe de contagem
+df_count["Tipo do Apoio"] = df_count["Tipo do Apoio"].replace(nomes_legiveis)
+
+# Criamos o gráfico de barras
+fig_barras = px.bar(
+    df_count,
+    x="Tipo do Apoio",
+    y="Quantidade",
+    title="Formas de Apoio Administrativo",
+    labels={"Tipo do Apoio": "Tipo do Apoio", "Quantidade": "Número de Respostas"},
+    text=df_count["Quantidade"],
+    color="Tipo do Apoio",
+    color_discrete_sequence=px.colors.qualitative.Set3 
+)
+# Ajustamos o layout
+fig_barras.update_layout(
+    xaxis_title="Tipo do Apoio",
+    yaxis_title="Número de Respondentes",
+    font=dict(size=12),
+    showlegend=False
+)
+fig_barras.update_traces(textfont_size=18)
+
+# Exibimos o gráfico
+fig_barras.show()
+```
+
+## Questionário sobre a percepção das dificuldades
+
+A última parte do questionário apresenta quinze afirmações e pede que seja indicada uma opção para cada afirmação, com as opções `Discordo totalmente`, `Discordo parcialmente`, `Nem discordo nem concordo`, `Concordo parcialmente`, `Concordo totalmente` e `Não se aplica`.
+
+Como serão muitos gráficos semelhante, variando somente a pergunta, podemos simplificar definindo algumas constantes que serão usadas por todos os gráficos:
+
+```{python}
+# Ordem das respostas e cores associadas.
+mapa_respostas = {
+    "Discordo totalmente": "#A82E5D",
+    "Discordo parcialmente": "#D084A1", 
+    "Nem discordo nem concordo": "#a0a0a0",
+    "Concordo parcialmente": "#97B4E4",
+    "Concordo totalmente": "#3C70CC", 
+    "Não se aplica": "#606060"
+}
+```
+
+Como os gráficos para as perguntas sobre percepção tem basicamente a mesma estrutura podemos escrever uma função para criá-los:
+
+```{python}
+def cria_grafico_respostas(df, coluna, titulo, respostas_mapeadas):
+    """
+    Gera um gráfico de barras com base nas respostas a uma pergunta.
+
+    Parâmetros:
+    - df: DataFrame contendo os dados
+    - coluna: Nome da coluna da pergunta
+    - titulo: Título a ser usado no gráfico
+    - respostas_mapeadas: Dicionário com a ordem das respostas e cores associadas
+
+    Retorna:
+    - fig_bar: Objeto pronto para exibição
+    """
+
+    # Contamos respostas e calculamos percentual.
+    df_contagem = df[coluna].value_counts(normalize=True).reset_index()
+    df_contagem.columns = ["Resposta", "Percentual"]
+    df_contagem["Percentual"] *= 100 
+
+    # Garantimos que todas as categorias estejam incluídas (mesmo com 0%).
+    df_contagem = df_contagem.set_index("Resposta").\
+        reindex(respostas_mapeadas.keys(), fill_value=0).reset_index()
+
+    # Garantimos a ordem correta das categorias.
+    df_contagem["Resposta"] = pd.Categorical(df_contagem["Resposta"], 
+                                     categories=respostas_mapeadas.keys(), ordered=True)
+    df_contagem = df_contagem.sort_values("Resposta")  
+
+    # Criamos o gráfico de barras.
+    fig_bar = px.bar(
+        df_contagem, 
+        x="Resposta", 
+        y="Percentual",
+        title=f"{titulo}",
+        labels={"Percentual": "Percentual (%)", "Resposta": "Resposta"},
+        color="Resposta",
+        color_discrete_map=respostas_mapeadas,
+        text=df_contagem["Percentual"].round(1).astype(str) + "%"  
+    )
+
+    # Ajustamos o layout.
+    fig_bar.update_layout(
+        xaxis_title="",  
+        xaxis=dict(showticklabels=False),
+        yaxis_title="Percentual (%)"
+    )
+    # Aumenta a fonte para melhor legibilidade.
+    fig_bar.update_traces(textfont_size=18)  
+    return fig_bar
+```
+
+Com esta função podemos criar o gráfico das respostas às perguntas sobre a percepção das dificuldades. As escalas de cor podem ser invertidas para destacar respostas positivas e negativas.
+
+### Minha IES/ICT valoriza o trabalho do coordenador.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[Minha IES/ICT valoriza o trabalho do coordenador.]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Minha IES/ICT valoriza o trabalho do coordenador.",
+                             mapa_respostas)
+fig.show()
+```
+
+### O corpo docente valoriza o trabalho do coordenador.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[O corpo docente valoriza o trabalho do coordenador]"
+fig = cria_grafico_respostas(df, coluna,
+                             "O corpo docente valoriza o trabalho do coordenador.", 
+                              mapa_respostas)
+fig.show()
+```
+
+### Os corpos docente e discente colaboram com minhas tarefas como coordenador.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[O corpo docente e discente colaboram com minhas tarefas como coordenador]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Os corpos docente e discente colaboram "\
+                             "com minhas tarefas como coordenador.",
+                             mapa_respostas)
+fig.show()
+```
+
+### Ser coordenador é uma experiência valiosa.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[Ser coordenador é uma experiência valiosa]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Ser coordenador é uma experiência valiosa.",
+                             mapa_respostas)
+fig.show()
+```
+
+### As tarefas da coordenação exigem muito de mim.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[As tarefas da coordenação exigem muito de mim]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "As tarefas da coordenação exigem muito de mim.",
+                             mapa_respostas)
+fig.show()
+```
+
+### Gostaria de ser coordenador por mais de um mandato.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[Gostaria de ser coordenador por mais de um mandato]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Gostaria de ser coordenador por mais de um mandato.",
+                             mapa_respostas)
+fig.show()
+```
+
+### Colegas da minha IES/ICT querem ser coordenadores.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[Colegas da minha IES/ICT querem ser coordenadores]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Colegas da minha IES/ICT querem ser coordenadores.",
+                             mapa_respostas)
+fig.show()
+```
+
+### As leis e portarias que regem as pós-graduações são simples e compreensíveis.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[As leis e portarias que regem as pós-graduações são simples"\
+         " e compreensíveis]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "As leis e portarias que regem as pós-graduações são"\
+                             " simples e compreensíveis.",
+                             mapa_respostas)
+fig.show()
+```
+
+### Estou seguro quanto ao meu conhecimento de leis e portarias que regem a PG.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[Estou seguro quanto ao meu conhecimento de leis e portarias que regem a PG]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Estou seguro quanto ao meu conhecimento de leis e"\
+                             " portarias que regem a PG.",
+                             mapa_respostas)
+fig.show()
+```
+
+### Os sistemas de coleta de dados (Sucupira, Lattes) apoiam a coordenação.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[Os sistemas de coleta de dados (Sucupira, Lattes) apoiam a coordenação]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Os sistemas de coleta de dados (Sucupira, Lattes)"\
+                             " apoiam a coordenação.",
+                             mapa_respostas)
+fig.show()
+```
+
+### Os processos de avaliação da CAPES são facilmente compreensíveis.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[Os processos de avaliação da CAPES são facilmente compreensíveis]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Os processos de avaliação da CAPES são facilmente"\
+                             " compreensíveis.",
+                             mapa_respostas)
+fig.show()
+```
+
+### Entendo completamente a necessidade das informações enviadas pelo Coleta.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[Entendo completamente a necessidade das informações enviadas pelo Coleta]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Entendo completamente a necessidade das informações"\
+                             " enviadas pelo Coleta.",
+                             mapa_respostas)
+fig.show()
+```
+
+### As informações da CAPES sobre a PG (portarias, boletins) são claros e organizados.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[As informações da CAPES sobre a PG (portarias, boletins) são"\
+         " claros e organizados]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "As informações da CAPES sobre a PG (portarias,"\
+                             " boletins) são claros e organizados.",
+                             mapa_respostas)
+fig.show()
+```
+
+### Os recursos (bolsas, PROAP) da CAPES para os programas são adequados.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[Os recursos (bolsas, PROAP) da CAPES para os programas são adequados]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Os recursos (bolsas, PROAP) da CAPES para os"\
+                             " programas são adequados.",
+                             mapa_respostas)
+fig.show()
+```
+
+### Os recursos (bolsas, PROAP) da CAPES são acessíveis e de fácil uso.
+
+```{python}
+#| classes: chartpython
+coluna = "Você concorda ou discorda das afirmações? "\
+         "[Os recursos (bolsas, PROAP) da CAPES são acessíveis e de fácil uso]"
+fig = cria_grafico_respostas(df, coluna, 
+                             "Os recursos (bolsas, PROAP) da CAPES são acessíveis"\
+                             " e de fácil uso.",
+                             mapa_respostas)
+fig.show()
+```
+
+# Cruzamento dos dados
+
+Nesta seção apresentamos alguns gráficos que podem ajudar na análise de dados cruzados.
+
+## Como é a distribuição da remuneração pelo status jurídico da instituição?
+
+Existe alguma relação entre as informações sobre remuneração e o status jurídicos das instituições? Um *treemap* pode mostrar as proporções gerais.
+
+```{python}
+#| classes: chartpython
+# Contamos quantas vezes cada "Remuneração" aparece dentro de cada "Status Jurídico".
+df_treemap = df.groupby(["Status Jurídico", "Remuneração por Coordenação de PPG"]). \
+                size().reset_index(name="Quantidade")
+
+# Calculamos o total de respostas para obter as porcentagens.
+total_respostas = df_treemap["Quantidade"].sum()
+df_treemap["Porcentagem"] = df_treemap["Quantidade"] / total_respostas * 100  
+
+# Criamos o gráfico de treemap com porcentagens.
+fig_treemap = px.treemap(
+    df_treemap, 
+    path=["Status Jurídico", "Remuneração por Coordenação de PPG"], 
+    values="Quantidade",  
+    title="Distribuição da Remuneração por Coordenação de PPG e por Status Jurídico",
+    color="Status Jurídico",  
+    color_discrete_sequence=px.colors.qualitative.Set3  
+)
+# Personalizamos o texto para exibir valores e porcentagens.
+fig_treemap.update_traces(
+    texttemplate="<b>%{label}</b><br>%{value} respostas<br>%{value:.2f}% do total"
+)
+# Exibimos o gráfico.
+fig_treemap.show()
+```
+
+A mesma informação pode ser visualizada de maneira diferente em um *heatmap*:
+
+```{python}
+#| classes: chartpython
+# Criamos uma tabela cruzada (crosstab) para contar ocorrências.
+crosstab = pd.crosstab(df["Status Jurídico"], df["Remuneração por Coordenação de PPG"])
+
+# Definimos a ordem explícita das categorias e reordenamos a tabela.
+ordem_categorias = ["Nenhuma", "Até 1000 reais/mês", "Até 1500 reais/mês", 
+                    "Mais de 1500 reais/mês"]
+crosstab = crosstab[ordem_categorias]
+
+# Criamos o heatmap com Plotly.
+fig_heatmap = px.imshow(
+    crosstab.values,  
+    labels=dict(x="Remuneração por Coordenação de PPG", y="Status Jurídico", 
+                color="Quantidade"),
+    x=crosstab.columns,  
+    y=crosstab.index, 
+    color_continuous_scale="RdBu",  
+    text_auto=True  
+)
+# Ajustamos título e layout.
+fig_heatmap.update_layout(
+    title="Distribuição da Remuneração por Coordenação de PPG por Status Jurídico",
+    xaxis_title="Remuneração por Coordenação de PPG",
+    yaxis_title="Status Jurídico"
+)
+
+# Exibimos o gráfico.
+fig_heatmap.show()
+```
+
+Ainda outra forma de visualizar a mesma informação é com um gráfico de barras empilhadas.
+
+```{python}
+#| classes: chartpython
+# Definimos as colunas
+coluna_status = "Status Jurídico"
+coluna_remuneracao = "Remuneração por Coordenação de PPG"
+
+# Indicamos a ordem explícita das categorias
+ordem_status = ["Federal", "Estadual", "Municipal", "Particular"] 
+ordem_remuneracao = ["Nenhuma", "Até 1000 reais/mês", 
+                     "Até 1500 reais/mês", "Mais de 1500 reais/mês"]
+
+# Criamos tabela de frequência cruzada
+df_contagem = df.groupby([coluna_status, coluna_remuneracao]).size(). \
+                         reset_index(name="Quantidade")
+
+# Calculamos a porcentagem dentro de cada Status Jurídico.
+df_contagem["Percentual"] = df_contagem.groupby(coluna_status)["Quantidade"]. \
+                                                transform(lambda x: x / x.sum() * 100)
+
+# Forçamos a ordenação correta das categorias
+df_contagem[coluna_status] = pd.Categorical(df_contagem[coluna_status], \
+                                            categories=ordem_status, ordered=True)
+df_contagem[coluna_remuneracao] = \
+    pd.Categorical(df_contagem[coluna_remuneracao], \
+                   categories=ordem_remuneracao, ordered=True)
+
+# Criamos o gráfico de barras empilhadas.
+fig_bar = px.bar(
+    df_contagem, 
+    x=coluna_status,  
+    y="Percentual", 
+    color=coluna_remuneracao,  
+    title="Distribuição da Remuneração por Coordenação de PPG por Status Jurídico",
+    labels={
+        coluna_status: "Status Jurídico",
+        "Percentual": "Percentual (%)",
+        coluna_remuneracao: "Faixa de Remuneração"
+    },
+    text=df_contagem["Percentual"].round(1).astype(str) + "%", 
+    barmode="relative", 
+    category_orders={  
+        coluna_status: ordem_status,
+        coluna_remuneracao: ordem_remuneracao  
+    },
+    color_discrete_sequence=px.colors.sequential.deep
+)
+
+# Ajustamos o layout
+fig_bar.update_layout(
+    xaxis_title="",  
+    yaxis_title="Percentual (%)",
+    xaxis=dict(
+        tickfont=dict(size=14),  
+        tickangle=0,  
+    ),
+    legend_title="Faixa de Remuneração",  
+    legend_traceorder="normal",
+)
+# Ajustamos a fonte dos textos dentro das barras
+fig_bar.update_traces(textfont_size=18) 
+
+# Exibimos o gráfico
+fig_bar.show()
+```
+
+Podemos usar qualquer um destes tipos de gráficos para visualizar as relações entre as variáveis do formulário.
+
+## O valor da remuneração impacta na percepção da valorização do coordenador?
+
+```{python}
+#| classes: chartpython
+# Cruzaremos os dados destas colunas:
+coluna_remuneracao = "Remuneração por Coordenação de PPG"
+coluna_valorizacao = "Você concorda ou discorda das afirmações?" \
+                     " [Minha IES/ICT valoriza o trabalho do coordenador.]"
+
+# Estas são as ordens das categorias.
+ordem_remuneracao = ["Nenhuma", "Até 1000 reais/mês", 
+                     "Até 1500 reais/mês", "Mais de 1500 reais/mês"]
+ordem_valorizacao = ["Discordo totalmente", "Discordo parcialmente", 
+                     "Nem discordo nem concordo",
+                     "Concordo parcialmente", "Concordo totalmente"]
+                     # Que feio, retirei manualmente, "Não se aplica"]
+
+# Criamos uma tabela de frequência cruzada (combinação das respostas)
+df_contagem = df.groupby([coluna_remuneracao, coluna_valorizacao]).size() \
+                .reset_index(name="Quantidade")
+
+# Calculamos a porcentagem dentro de cada faixa salarial
+df_contagem["Percentual"] = df_contagem.groupby(coluna_remuneracao)["Quantidade"] \
+                                       .transform(lambda x: x / x.sum() * 100)
+
+# Forçamos as ordens corretas das categorias.
+df_contagem[coluna_remuneracao] = \
+    pd.Categorical(df_contagem[coluna_remuneracao], \
+                   categories=ordem_remuneracao, ordered=True)
+df_contagem[coluna_valorizacao] = \
+    pd.Categorical(df_contagem[coluna_valorizacao], \
+                               categories=ordem_valorizacao, ordered=True)
+
+# Criamos o gráfico de barras empilhadas.
+fig_bar = px.bar(
+    df_contagem, 
+    x=coluna_remuneracao, 
+    y="Percentual", 
+    color=coluna_valorizacao, 
+    title="A remuneração impacta a percepção da valorização do coordenador?",
+    labels={
+        coluna_remuneracao: "Faixa de Remuneração",
+        "Percentual": "Percentual (%)",
+        coluna_valorizacao: "Percepção de Valorização"
+    },
+    text=df_contagem["Percentual"].round(1).astype(str) + "%", 
+    barmode="relative", 
+    color_discrete_map=mapa_respostas,  
+    category_orders={  # Garantimos a ordem explícita dos eixos
+        coluna_remuneracao: ordem_remuneracao,  
+        coluna_valorizacao: ordem_valorizacao  
+    } 
+)
+
+# Ajustamos o layout.
+fig_bar.update_layout(
+    xaxis_title="",  
+    yaxis_title="Percentual (%)",
+    xaxis=dict(
+        tickfont=dict(size=11),  
+        tickangle=0,  
+    ),
+    legend_title="Percepção da Valorização",
+    legend_traceorder="normal",
+)
+fig_bar.update_traces(textfont_size=18) 
+
+# Exibimos o gráfico.
+fig_bar.show()
+```
+
+## Coordenadores que acham a experiência valiosa gostariam de continuar no cargo?
+
+```{python}
+#| classes: chartpython
+# Vamos comparar as respostas a estas perguntas:
+coluna_experiencia = "Você concorda ou discorda das afirmações?" \
+                     " [Ser coordenador é uma experiência valiosa]"
+coluna_continuar = "Você concorda ou discorda das afirmações?" \
+                   " [Gostaria de ser coordenador por mais de um mandato]"
+
+# Estas são as ordens das categorias para ambas as perguntas
+ordem_experiencia = ["Discordo totalmente", "Discordo parcialmente", 
+                     "Nem discordo nem concordo", "Concordo parcialmente", 
+                     "Concordo totalmente", "Não se aplica"]
+ordem_continuar = ["Discordo totalmente", "Discordo parcialmente", 
+                   "Nem discordo nem concordo", "Concordo parcialmente", 
+                   "Concordo totalmente", "Não se aplica"]
+
+# Converter as colunas para categóricas ANTES do groupby()
+df[coluna_experiencia] = pd.Categorical(df[coluna_experiencia], 
+                                           categories=ordem_experiencia, ordered=True)
+df[coluna_continuar] = pd.Categorical(df[coluna_continuar], 
+                                         categories=ordem_continuar, ordered=True)
+
+# Criamos uma tabela de frequência cruzada para o gráfico de barras empilhadas
+df_stacked = df.groupby([coluna_experiencia, coluna_continuar], 
+                        observed=False).size().reset_index(name="Quantidade")
+
+# Calculamos a porcentagem dentro de cada nível de "Experiência Valiosa".
+df_stacked["Percentual"] = df_stacked.groupby(coluna_experiencia, 
+                                              observed=False)["Quantidade"]. \
+                                              transform(lambda x: x / x.sum() * 100)
+
+# Criamos o gráfico de barras empilhadas
+fig_stacked = px.bar(
+    df_stacked,
+    x=coluna_experiencia,
+    y="Percentual",
+    color=coluna_continuar,
+    title="Relação entre Experiência Valiosa e Interesse em Continuar",
+    labels={
+        coluna_experiencia: "Experiência Valiosa",
+        coluna_continuar: "Interesse em Continuar",
+        "Percentual": "Percentual (%)"
+    },
+    text=df_stacked["Percentual"].round(1).astype(str) + "%",
+    barmode="relative",
+    category_orders={
+        coluna_experiencia: ordem_experiencia,
+        coluna_continuar: ordem_continuar
+    },
+    color_discrete_map=mapa_respostas
+)
+
+# Ajustamos o layout
+fig_stacked.update_layout(
+    xaxis_title="Experiência Valiosa",
+    yaxis_title="Percentual (%)",
+    font=dict(size=12),
+    legend_title="Interesse em Continuar",
+    legend_traceorder="normal",
+)
+# Ajustamos o tamanho da fonte dos valores dentro das barras
+fig_stacked.update_traces(textfont_size=14)
+
+# Mostramos o gráfico
+fig_stacked.show()
+```
+
+## Coordenadores que se sentem sobrecarregados são menos propensos a querer continuar no cargo?
+
+```{python}
+#| classes: chartpython
+# Vamos comparar as respostas a estas perguntas:
+coluna_exigencia = "Você concorda ou discorda das afirmações?" \
+                   " [As tarefas da coordenação exigem muito de mim]"
+coluna_continuar = "Você concorda ou discorda das afirmações?" \
+                   " [Gostaria de ser coordenador por mais de um mandato]"
+
+# Estas são as ordens das categorias para ambas as perguntas
+ordem_exigencia = ["Discordo totalmente", "Discordo parcialmente", 
+                   "Nem discordo nem concordo", "Concordo parcialmente", 
+                   "Concordo totalmente", "Não se aplica"]
+ordem_continuar = ["Discordo totalmente", "Discordo parcialmente", 
+                   "Nem discordo nem concordo", "Concordo parcialmente", 
+                   "Concordo totalmente", "Não se aplica"]
+
+# Converter as colunas para categóricas ANTES do groupby()
+df[coluna_exigencia] = pd.Categorical(df[coluna_exigencia], 
+                                         categories=ordem_exigencia, ordered=True)
+df[coluna_continuar] = pd.Categorical(df[coluna_continuar], 
+                                         categories=ordem_continuar, ordered=True)
+
+# Criamos uma tabela de frequência cruzada para o gráfico de barras empilhadas
+df_stacked = df.groupby([coluna_exigencia, coluna_continuar], 
+                         observed=False).size().reset_index(name="Quantidade")
+
+# Calculamos a porcentagem dentro de cada nível de "Experiência Valiosa".
+df_stacked["Percentual"] = df_stacked.groupby(coluna_exigencia, 
+                                              observed=False)["Quantidade"]. \
+                                              transform(lambda x: x / x.sum() * 100)
+
+# Criamos o gráfico de barras empilhadas
+fig_stacked = px.bar(
+    df_stacked,
+    x=coluna_exigencia,
+    y="Percentual",
+    color=coluna_continuar,
+    title="Relação entre Exigência da Coordenação e Interesse em Continuar",
+    labels={
+        coluna_experiencia: "Coordenação é Tarefa Exigente",
+        coluna_continuar: "Interesse em Continuar",
+        "Percentual": "Percentual (%)"
+    },
+    text=df_stacked["Percentual"].round(1).astype(str) + "%",
+    barmode="relative",
+    category_orders={
+        coluna_exigencia: ordem_exigencia,
+        coluna_continuar: ordem_continuar
+    },
+    color_discrete_map=mapa_respostas
+)
+
+# Ajustamos o layout
+fig_stacked.update_layout(
+    xaxis_title="Coordenação é Tarefa Exigente",
+    yaxis_title="Percentual (%)",
+    font=dict(size=12),
+    legend_title="Interesse em Continuar",
+    legend_traceorder="normal",
+)
+# Ajustamos o tamanho da fonte dos valores dentro das barras
+fig_stacked.update_traces(textfont_size=14)
+
+# Mostramos o gráfico
+fig_stacked.show()
+```
+
+Um *heatmap* pode dar uma outra visão destas respostas combinadas:
+
+```{python}
+#| classes: chartpython
+# Criamos uma tabela de frequência cruzada para o heatmap
+df_heatmap = df.groupby([coluna_exigencia, coluna_continuar], observed=False). \
+                       size().reset_index(name="Quantidade")
+
+# Garantimos a ordenação explícita das categorias
+df_heatmap[coluna_exigencia] = pd.Categorical(df_heatmap[coluna_exigencia], \
+                                              categories=ordem_exigencia, ordered=True)
+df_heatmap[coluna_continuar] = pd.Categorical(df_heatmap[coluna_continuar], \
+                                              categories=ordem_continuar, ordered=True)
+
+# Criamos o gráfico de heatmap
+fig_heatmap = px.density_heatmap(
+    df_heatmap,
+    x=coluna_exigencia,
+    y=coluna_continuar,
+    z="Quantidade",
+    title="Relação entre Exigência da Coordenação e Interesse em Continuar",
+    labels={
+        coluna_exigencia: "Coordenação é Tarefa Exigente",
+        coluna_continuar: "Interesse em Continuar",
+        "Quantidade": "Número de Respostas"
+    },
+    color_continuous_scale="Viridis",
+    text_auto=True  # Mostrar valores nas células
+)
+
+# Ajustamos o layout
+fig_heatmap.update_layout(
+    xaxis_title="Coordenação é Tarefa Exigente",
+    yaxis_title="Interesse em Continuar",
+    font=dict(size=12),
+    coloraxis_colorbar=dict(title="Número de Respostas"),
+    xaxis=dict(categoryorder="array", categoryarray=ordem_exigencia),
+    yaxis=dict(categoryorder="array", categoryarray=ordem_continuar)
+)
+
+# Exibimos o gráfico
+fig_heatmap.show()
+```
+
+## A redução de carga horária afeta a vontade de continuar coordenador?
+
+```{python}
+#| classes: chartpython
+# Analisaremos estas duas colunas:
+coluna_reducao_carga = "Tem_Reducao_Carga"
+coluna_continuar = "Você concorda ou discorda das afirmações?" \
+                   " [Gostaria de ser coordenador por mais de um mandato]"
+# Criamos a tabela de frequência cruzada
+df_stacked_reducao = df.groupby([coluna_reducao_carga, coluna_continuar], \
+                                 observed=False).size().reset_index(name="Quantidade")
+# Criamos um dicionário para substituir os valores True/False
+mapa_booleans = {True: "Sim", False: "Não"}
+
+# Substituimos os valores na coluna de redução da carga horária
+df_stacked_reducao[coluna_reducao_carga] = \
+    df_stacked_reducao[coluna_reducao_carga].replace(mapa_booleans)
+
+# Calculamos a porcentagem dentro de cada nível de "Redução na Carga Didática"
+df_stacked_reducao["Percentual"] = \
+    df_stacked_reducao.groupby(coluna_reducao_carga)["Quantidade"].transform(lambda x: x / x.sum() * 100)
+
+# Criamos o gráfico de barras empilhadas
+fig_stacked_reducao = px.bar(
+    df_stacked_reducao,
+    x=coluna_reducao_carga,
+    y="Percentual",
+    color=coluna_continuar,
+    title="Relação da Redução na Carga Horária e Interesse em Continuar na Coordenação",
+    labels={
+        coluna_reducao_carga: "Recebe Redução na Carga Didática",
+        coluna_continuar: "Interesse em Continuar",
+        "Percentual": "Percentual (%)"
+    },
+    text=df_stacked_reducao["Percentual"].round(1).astype(str) + "%",
+    barmode="relative",
+    color_discrete_map=mapa_respostas
+)
+
+# Ajustamos o layout
+fig_stacked_reducao.update_layout(
+    xaxis_title="Recebe Redução na Carga Didática",
+    yaxis_title="Percentual (%)",
+    font=dict(size=12),
+    legend_title="Interesse em Continuar",
+    legend_traceorder="normal",
+)
+
+# Ajustamos o tamanho da fonte dos valores dentro das barras
+fig_stacked_reducao.update_traces(textfont_size=18)
+fig_stacked_reducao.show()
+```
 
 
+## Vantagens na avaliação funcional afetam a vontade de continuar coordenador?
+
+```{python}
+#| classes: chartpython
+# Alguns campos e estruturas deste bloco foram definidos no anterior.
+coluna_vantagens_aval = "Tem_Vantagens_Avaliacao"
+# Criamos a tabela de frequência cruzada
+df_stacked_vantagens = df.groupby([coluna_vantagens_aval, coluna_continuar], \
+                                 observed=False).size().reset_index(name="Quantidade")
+
+# Substituimos os valores na coluna de vantagens na avaliação
+df_stacked_vantagens[coluna_vantagens_aval] = \
+    df_stacked_vantagens[coluna_vantagens_aval].replace(mapa_booleans)
+
+# Calculamos a porcentagem dentro de cada nível de "Vantagens na Avaliação"
+df_stacked_vantagens["Percentual"] = \
+    df_stacked_vantagens.groupby(coluna_vantagens_aval)["Quantidade"]. \
+    transform(lambda x: x / x.sum() * 100)
+
+# Criamos o gráfico de barras empilhadas
+fig_stacked_vantagens = px.bar(
+    df_stacked_vantagens,
+    x=coluna_vantagens_aval,
+    y="Percentual",
+    color=coluna_continuar,
+    title="Relação entre ter Vantagens na Avaliação Funcional e Interesse em Continuar na Coordenação",
+    labels={
+        coluna_vantagens_aval: "Vantagens na Avaliação",
+        coluna_continuar: "Interesse em Continuar",
+        "Percentual": "Percentual (%)"
+    },
+    text=df_stacked_vantagens["Percentual"].round(1).astype(str) + "%",
+    barmode="relative",
+    color_discrete_map=mapa_respostas
+)
+
+# Ajustamos o layout
+fig_stacked_vantagens.update_layout(
+    xaxis_title="Vantagens na Avaliação Funcional",
+    yaxis_title="Percentual (%)",
+    font=dict(size=12),
+    title_font_size=15,
+    legend_title="Interesse em Continuar",
+    legend_traceorder="normal",
+)
+
+# Ajustamos o tamanho da fonte dos valores dentro das barras
+fig_stacked_vantagens.update_traces(textfont_size=18)
+fig_stacked_vantagens.show()
+```
+
+
+
+
+## A região da sede correlaciona com a adequação dos recursos da CAPES?
+
+```{python}
+#| classes: chartpython
+# Definição da coluna para a região e a percepção sobre recursos (ordenada)
+df["Região da Sede"] = pd.Categorical(
+    df["Região da Sede"], 
+    categories=["Norte", "Nordeste", "Centro-Oeste", "Sudeste", "Sul"],
+    ordered=True
+)
+
+# Definição da coluna correta para percepção de recursos
+coluna_percepcao = "Você concorda ou discorda das afirmações?" \
+                   " [Os recursos (bolsas, PROAP) da CAPES para os programas são adequados]"
+
+# Definição da ordem das categorias da percepção
+df[coluna_percepcao] = pd.Categorical(
+    df[coluna_percepcao],
+    categories=[
+        "Discordo totalmente",
+        "Discordo parcialmente",
+        "Nem discordo nem concordo",
+        "Concordo parcialmente",
+        "Concordo totalmente",
+        "Não se aplica"
+    ],
+    ordered=True
+)
+
+# Criamos a tabela de frequência cruzada
+df_stacked_recursos = df.groupby(["Região da Sede", coluna_percepcao], \
+                                 observed=True).size().reset_index(name="Quantidade")
+
+# Calculamos a porcentagem dentro de cada nível de "Região da Sede"
+df_stacked_recursos["Percentual"] = \
+    df_stacked_recursos.groupby("Região da Sede",observed=True)["Quantidade"]. \
+    transform(lambda x: x / x.sum() * 100)
+
+# Criamos o gráfico de barras empilhadas
+fig_stacked_recursos = px.bar(
+    df_stacked_recursos,
+    x="Região da Sede",
+    y="Percentual",
+    color=coluna_percepcao,
+    title="Correlação da Região da Sede e Percepção sobre os Recursos da CAPES",
+    labels={
+        "Região da Sede": "Região da Sede",
+        coluna_percepcao: "Percepção sobre Recursos",
+        "Percentual": "Percentual (%)"
+    },
+    text=df_stacked_recursos["Percentual"].round(1).astype(str) + "%",
+    barmode="relative",
+    color_discrete_map=mapa_respostas
+)
+
+# Ajustamos o layout
+fig_stacked_recursos.update_layout(
+    xaxis_title="Região da Sede",
+    yaxis_title="Percentual (%)",
+    font=dict(size=12),
+    title_font_size=15,
+    legend_title="Percepção sobre Recursos",
+    legend_traceorder="normal",
+)
+
+# Ajustamos o tamanho da fonte dos valores dentro das barras
+fig_stacked_recursos.update_traces(textfont_size=18)
+fig_stacked_recursos.show()
+```
+
+## Coordenadores que entendem bem as regras da CAPES sentem que os sistemas (Sucupira, Lattes) ajudam na gestão?
+
+```{python}
+#| classes: chartpython
+# Vamos comparar as respostas a estas perguntas:
+coluna_conheco = "Você concorda ou discorda das afirmações?" \
+                    " [Estou seguro quanto ao meu conhecimento de leis e portarias que regem a PG]"
+coluna_sistemas = "Você concorda ou discorda das afirmações?" \
+                   " [Os sistemas de coleta de dados (Sucupira, Lattes) apoiam a coordenação]"
+
+# Estas são as ordens das categorias para ambas as perguntas
+ordem_conheco = ["Discordo totalmente", "Discordo parcialmente", 
+                     "Nem discordo nem concordo", "Concordo parcialmente", 
+                     "Concordo totalmente", "Não se aplica"]
+ordem_sistemas = ["Discordo totalmente", "Discordo parcialmente", 
+                   "Nem discordo nem concordo", "Concordo parcialmente", 
+                   "Concordo totalmente", "Não se aplica"]
+
+# Converter as colunas para categóricas ANTES do groupby()
+df[coluna_conheco] = pd.Categorical(df[coluna_conheco], 
+                                           categories=ordem_conheco, ordered=True)
+df[coluna_sistemas] = pd.Categorical(df[coluna_sistemas], 
+                                         categories=ordem_sistemas, ordered=True)
+
+# Criamos uma tabela de frequência cruzada para o gráfico de barras empilhadas
+df_stacked = df.groupby([coluna_conheco, coluna_sistemas], 
+                        observed=False).size().reset_index(name="Quantidade")
+
+# Calculamos a porcentagem dentro de cada nível de "Conheço regras".
+df_stacked["Percentual"] = df_stacked.groupby(coluna_conheco, 
+                                              observed=False)["Quantidade"]. \
+                                              transform(lambda x: x / x.sum() * 100)
+
+# Criamos o gráfico de barras empilhadas
+fig_stacked = px.bar(
+    df_stacked,
+    x=coluna_conheco,
+    y="Percentual",
+    color=coluna_sistemas,
+    title="Relação entre Conhecer Regras e Sistemas Apoiam a Coordenação",
+    labels={
+        coluna_conheco: "Conheço bem as Regras",
+        coluna_sistemas: "Sistemas Apoiam a Coordenação",
+        "Percentual": "Percentual (%)"
+    },
+    text=df_stacked["Percentual"].round(1).astype(str) + "%",
+    barmode="relative",
+    category_orders={
+        coluna_conheco: ordem_conheco,
+        coluna_sistemas: ordem_sistemas
+    },
+    color_discrete_map=mapa_respostas
+)
+
+# Ajustamos o layout
+fig_stacked.update_layout(
+    xaxis_title="Conheço bem as Regras",
+    yaxis_title="Percentual (%)",
+    font=dict(size=12),
+    legend_title="Sistemas Apoiam a Coordenação",
+    legend_traceorder="normal",
+)
+# Ajustamos o tamanho da fonte dos valores dentro das barras
+fig_stacked.update_traces(textfont_size=14)
+
+# Mostramos o gráfico
+fig_stacked.show()
+```
+
+<div class="signature"><a href='https://linktr.ee/rafaeldcsantos'>Rafael Santos</a></div>
