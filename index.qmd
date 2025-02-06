@@ -41,6 +41,12 @@ import re
 import plotly.express as px
 import plotly.graph_objects as go
 ```
+Diferenças entre versões de bibliotecas causam o aparecimento de várias mensagens. Vamos ignorá-las.
+
+```{python}
+import warnings
+warnings.filterwarnings("ignore", category=FutureWarning, module="pandas")
+```
 
 Vamos ler a planilha!
 
