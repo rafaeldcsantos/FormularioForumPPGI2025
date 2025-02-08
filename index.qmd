@@ -205,6 +205,104 @@ fig.add_trace(go.Scatter(
 fig.show()
 ```
 
+Vamos criar uma variante do mesmo gráfico mostrando o total acumulado de respostas no tempo.
+
+```{python}
+# Definimos o intervalo de tempo para o gráfico.
+inicio = pd.Timestamp("2025-01-31 20:00:00")
+fim = pd.Timestamp("2025-02-06 12:00:00")
+
+# Criamos a série de respostas acumuladas ao longo do tempo
+df_sorted = df.sort_values("Timestamp")
+df_sorted["Total Acumulado"] = df_sorted["Count"].cumsum()
+
+# Criamos o gráfico de linha para exibir o total acumulado de respostas
+fig = go.Figure()
+
+fig.add_trace(go.Scatter(
+    x=df_sorted["Timestamp"],
+    y=df_sorted["Total Acumulado"],
+    mode="lines",
+    line=dict(color="#1f77b4", width=2),
+    name="Total Acumulado",
+    hovertemplate="%{x}: %{y}<extra></extra>"
+))
+
+# Ajustamos o intervalo do gráfico
+fig.update_xaxes(range=[inicio, fim])
+
+# Ajustamos a aparência da linha
+fig.update_traces(marker_line_color="rgba(0,80,180,0.25)", marker_line_width=2)
+
+# Customizamos o eixo X
+fig.update_xaxes(
+    tickformat="%d/%m %H:%M", title_text="Data e Hora",
+    dtick=6 * 3600 * 1000,  # 6 horas em milissegundos
+    tickangle=90
+)
+
+# Customizamos o eixo Y
+fig.update_yaxes(title_text="Total Acumulado de Respostas")
+
+# Adicionamos marcadores para o período noturno
+noites = []
+agora = inicio
+
+# Se o início já for à noite (depois das 18h), adicionar a primeira noite:
+if inicio.hour >= 18 or inicio.hour < 6:
+    inicioNoite = inicio  
+    fimNoite = inicio.replace(hour=6, minute=0, second=0) + pd.Timedelta(days=1) 
+    noites.append((inicioNoite, fimNoite))
+
+# Calculamos as noites seguintes
+while agora < fim:
+    inicioNoite = agora.replace(hour=18, minute=0, second=0)
+    fimNoite = (agora + pd.Timedelta(days=1)).replace(hour=6, minute=0, second=0)
+    if inicioNoite >= inicio:
+        noites.append((inicioNoite, fimNoite))
+    agora += pd.Timedelta(days=1)
+
+# Adicionamos as barras ao gráfico
+for inicioNoite, fimNoite in noites:
+    fig.add_shape(type="rect",
+                  x0=inicioNoite, x1=fimNoite, y0=0, y1=df_sorted["Total Acumulado"].max(),
+                  fillcolor="darkgray", opacity=0.5, layer="below", line_width=0)
+
+# Criamos anotações para o fim de semana
+inicioFimDeSemana = pd.Timestamp("2025-01-31 18:00:00")  
+fimFimDeSemana = pd.Timestamp("2025-02-03 06:00:00") 
+
+# Adicionamos o sombreamento do final de semana ao gráfico
+fig.add_shape(type="rect",
+              x0=inicioFimDeSemana, x1=fimFimDeSemana, 
+              y0=0, y1=df_sorted["Total Acumulado"].max(),
+              fillcolor="red", opacity=0.1, layer="below", line_width=0)
+
+# Vamos anotar os horários em que lembramos os coordenadores sobre o formulário
+lembretes = [pd.Timestamp("2025-01-31 23:20:00"),
+             pd.Timestamp("2025-02-01 21:51:00"),
+             pd.Timestamp("2025-02-02 18:48:00"),
+             pd.Timestamp("2025-02-03 21:02:00"),
+             pd.Timestamp("2025-02-04 19:45:00"),
+             pd.Timestamp("2025-02-05 16:22:00"),
+             ]
+
+# Adicionamos os pontos
+fig.add_trace(go.Scatter(
+    x=lembretes,
+    y=[df_sorted["Total Acumulado"].max() * 1.05] * len(lembretes),  
+    mode="markers",
+    marker=dict(symbol="triangle-down", size=10, color="red"),
+    name="Lembretes",
+    hovertemplate="%{x}<extra></extra>"
+))
+
+# Mostramos o gráfico
+fig.show()
+
+```
+
+
 ## Distribuições dos PPGs por categorias
 
 Vamos ver como é a distribuição dos programas por câmaras da área Interdisciplinar (é possível que programas de outras áreas venham a responder o formulário).
